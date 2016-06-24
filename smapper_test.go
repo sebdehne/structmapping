@@ -8,15 +8,15 @@ import (
 func TestStructMapper_Map(t *testing.T) {
 
 	m := New()
-	m.Add(func (src *MoneyA, dst *MoneyB) {
+	m.Add(func(src *MoneyA, dst *MoneyB) {
 		dst.krone = src.krone
 		dst.ore = src.ore
 	})
-	fmt.Println("Init done", m)
+	fmt.Println("Using following mapper", m)
 
 	src := genTestOrder()
-	result := OrderB{}
-	m.Map(&src, &result)
+	result := new(OrderB)
+	m.Map(&src, result)
 	fmt.Println(result)
 }
 
