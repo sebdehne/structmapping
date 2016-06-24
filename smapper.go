@@ -5,6 +5,8 @@ import (
 	"fmt"
 )
 
+const debug = false
+
 func New() *StructMapper {
 	return &StructMapper{customWrappers:make(map[string]interface{})}
 }
@@ -21,8 +23,10 @@ func (s *StructMapper) Add(w interface{}) {
 func (m *StructMapper) Map(src, dst interface{}) {
 
 	typeConversion := fmt.Sprintf("%s-%s", reflect.ValueOf(src).Type(), reflect.ValueOf(dst).Type())
-	fmt.Println("Enter Map() ", typeConversion)
-	defer fmt.Println("Leaving Map() ", typeConversion)
+	if debug {
+		fmt.Println("Enter Map() ", typeConversion)
+		defer fmt.Println("Leaving Map() ", typeConversion)
+	}
 
 	// delegate to custom mapper if needed
 	if cMapper, ok := m.customWrappers[typeConversion]; ok {
@@ -41,18 +45,37 @@ func (m *StructMapper) Map(src, dst interface{}) {
 }
 
 func (m *StructMapper) mapValue(src, dst reflect.Value) {
-	fmt.Println("Enter mapValue for ", src, src.Type(), src.Kind(), dst, dst.Type(), dst.Kind())
-	defer fmt.Println("Leave mapValue for ", src, src.Type(), src.Kind(), dst, dst.Type(), dst.Kind())
+	if debug {
+		fmt.Println("Enter mapValue for ", src, src.Type(), src.Kind(), dst, dst.Type(), dst.Kind())
+		defer fmt.Println("Leave mapValue for ", src, src.Type(), src.Kind(), dst, dst.Type(), dst.Kind())
+	}
+
 	if src.Kind() == reflect.Map && dst.Kind() == reflect.Map {
 		dst.Set(reflect.MakeMap(dst.Type()))
 		for _, k := range src.MapKeys() {
-			dstValue := reflect.New(dst.Type().Elem())
+			dstValue := reflect.New(dst.Type().Elem()).Elem()
 			m.mapValue(src.MapIndex(k), dstValue)
 			dst.SetMapIndex(k, dstValue)
 		}
+	} else if src.Kind() == reflect.Slice && dst.Kind() == reflect.Slice {
+		dst.Set(reflect.MakeSlice(dst.Type(), src.Len(), src.Cap()))
+		for i := 0; i < src.Len(); i++ {
+			m.mapValue(src.Index(i), dst.Index(i))
+		}
 	} else if src.Kind() == reflect.Ptr && dst.Kind() == reflect.Ptr {
-		m.mapValue(src.Elem(), dst.Elem())
+		if src.Elem().IsValid() {
+			dst.Set(reflect.New(dst.Type()))
+			m.mapValue(src.Elem(), dst.Elem())
+		}
 	} else if src.Kind() == reflect.Struct && dst.Kind() == reflect.Struct {
+
+		// delegate to custom mapper if needed
+		typeConversion := fmt.Sprintf("%s-*%s", src.Type(), dst.Type())
+		if cMapper, ok := m.customWrappers[typeConversion]; ok {
+			reflect.ValueOf(cMapper).Call([]reflect.Value{src, dst.Addr()})
+			return
+		}
+
 		for i := 0; i < src.NumField(); i++ {
 			srcFieldName := src.Type().Field(i).Name
 			foundField := false
@@ -73,7 +96,7 @@ func (m *StructMapper) mapValue(src, dst reflect.Value) {
 		}
 	} else if isPrimitive(src.Kind()) && isPrimitive(dst.Kind()) {
 		// all primitive types remain, simply copy the value over
-		reflect.New(dst.Type()).Elem().Set(src)
+		dst.Set(src)
 	} else {
 		panic("Do not know how to convert " + src.Kind().String() + "->" + dst.Kind().String())
 	}
