@@ -10,21 +10,22 @@ type MappingMode int
 //noinspection GoUnusedConst
 const (
 	debug = false
+
+	// Iterates over the fields from the src struct and pushes them over to the dst struct
 	SrcFieldBased MappingMode = iota
+
+	// Iterates over the fields in the dst struct and pulls them over from the src struct
 	DstFieldBased
 )
 
-func New(mappingMode MappingMode, ignoreUnknownField bool) *StructMapper {
-	return &StructMapper{
-		customWrappers:make(map[string]interface{}),
-		mappingMode:mappingMode,
-		ignoreUnknownField:ignoreUnknownField}
+func New(mappingMode MappingMode, panicOnMissingFields bool) StructMapper {
+	return StructMapper{make(map[string]interface{}), mappingMode, panicOnMissingFields}
 }
 
 type StructMapper struct {
-	customWrappers map[string]interface{}
-	mappingMode MappingMode
-	ignoreUnknownField bool
+	customWrappers       map[string]interface{}
+	mappingMode          MappingMode
+	panicOnMissingFields bool
 }
 
 func (s *StructMapper) Add(w interface{}) {
@@ -41,6 +42,8 @@ func (s *StructMapper) Add(w interface{}) {
 	s.customWrappers[fmt.Sprintf("%s-%s", funcType.In(0), funcType.In(1).Elem())] = w
 }
 
+// Copies the data from src struct to dst struct using reflection. This allows the
+// user to convert between compatible struct types
 func (m *StructMapper) Map(src, dst interface{}) {
 
 	if debug {
@@ -105,7 +108,7 @@ func (m *StructMapper) mapValue(src, dst reflect.Value) {
 				}
 			}
 
-			if !foundField && !m.ignoreUnknownField {
+			if !foundField && m.panicOnMissingFields {
 				panic("Could not find field " + srcFieldName + " in dst")
 			}
 		}
