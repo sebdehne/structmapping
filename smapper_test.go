@@ -3,21 +3,46 @@ package structmapping
 import (
 	"testing"
 	"fmt"
+	"encoding/json"
 )
 
 func TestStructMapper_Map(t *testing.T) {
 
-	m := New()
+	m := New(SrcFieldBased, false)
 	m.Add(func(src MoneyA, dst *MoneyB) {
+		dst.krone = src.krone
+		dst.ore = src.ore
+	})
+	m.Add(func(src MoneyB, dst *MoneyA) {
 		dst.krone = src.krone
 		dst.ore = src.ore
 	})
 	fmt.Println("Using following mapper", m)
 
 	src := genTestOrder()
+
 	result := new(OrderB)
 	m.Map(&src, result)
-	fmt.Println(result)
+
+	back := new(OrderA)
+	m.Map(result, back)
+
+	srcB, err := json.Marshal(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resultB, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	backB, err := json.Marshal(back)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(srcB) != string(resultB) || string(resultB) != string(backB) || string(srcB) != string(backB) {
+		t.Fatal("Structs are not the same")
+	}
 }
 
 func genTestOrder() OrderA {
