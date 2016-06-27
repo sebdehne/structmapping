@@ -18,6 +18,7 @@ const (
 	DstFieldBased
 )
 
+// Creates a new mapper
 func New(mappingMode MappingMode, panicOnMissingFields bool) StructMapper {
 	return StructMapper{make(map[string]interface{}), mappingMode, panicOnMissingFields}
 }
